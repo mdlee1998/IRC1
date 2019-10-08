@@ -8,7 +8,10 @@
 #include <sys/sysinfo.h>
 #include <time.h>
 
+#include "characterLocations.h"
 #include "characterCounter.c"
+#include "huffmanTree.c"
+
 
 size_t getFilesize(const char* filename) {
     struct stat st;
@@ -25,8 +28,9 @@ int main(int argc, char** argv) {
     void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
     assert(mmappedData != MAP_FAILED);
 
-    characterCounter(mmappedData, filesize, cores);
-
+    int (*freqs)[NUM_CHARS];
+    freqs = characterCounter(mmappedData, filesize, cores);
+    createHuffmanTree(charArray, *freqs, NUM_CHARS);
 
 
     int rc = munmap(mmappedData, filesize);
