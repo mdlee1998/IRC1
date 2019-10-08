@@ -13,6 +13,9 @@ int cores;
 int reduceChars;
 int** arrayPointer[1];
 int finalCount[NUM_CHARS] = {0};
+char charArray[NUM_CHARS] = {SPACE, EXCLAMATION, DOUBLEQUO, SINQUOTE, OPENPAREN, CLOSEPAREN, COMMA, PERIOD, '0', '1', '2', '3', '4' ,'5', '6', '7', '8', '9', QUESTION, 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+
+
 
 
 int validChar(char c){
@@ -72,12 +75,12 @@ void* reduce(void* _index){
       finalCount[start] += arrayPointer[0][i][start];
 }
 
-void printArr(){
+void printArray(){
   for(int i = 0; i < NUM_CHARS; i++)
-    printf("Index %i has %i\n",i,finalCount[i]);
+    printf("%c has %i\n",charArray[i],finalCount[i]);
 }
 
-void characterCounter(void* fIn, size_t filesize, int inCores){
+int** characterCounter(void* fIn, size_t filesize, int inCores){
   file = fIn;
   cores = inCores;
   if(NUM_CHARS % inCores == 0)
@@ -90,20 +93,20 @@ void characterCounter(void* fIn, size_t filesize, int inCores){
   else
     chunkSize = ((inCores - (filesize % inCores)) + filesize) / inCores;
   int** array = (int**)malloc(inCores * sizeof(int *));
-  for(int i = 0; i < inCores; i++){
+  for(int i = 0; i < inCores; i++)
     array[i] = (int *)malloc(NUM_CHARS * sizeof(int));
-  }
   arrayPointer[0] = array;
-  for(int i = 0; i < inCores; i++){
+  for(int i = 0; i < inCores; i++)
     pthread_create(&threads[i], NULL, map, (void *)i);
-  }
   for(int i = 0; i < inCores; i++)
     pthread_join(threads[i],NULL);
-  for(int i = 0; i < inCores; i++){
+  for(int i = 0; i < inCores; i++)
     pthread_create(&threads[i], NULL, reduce, (void *) i);
-  }
   for(int i = 0; i < inCores; i++)
     pthread_join(threads[i], NULL);
-  printArr();
+
+  printArray();
   free(array);
+
+  return &finalCount;
 }
