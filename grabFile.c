@@ -10,7 +10,7 @@
 
 #include "characterLocations.h"
 #include "characterCounter.c"
-#include "huffmanTree.c"
+#include "encode.c"
 
 
 size_t getFilesize(const char* filename) {
@@ -18,6 +18,7 @@ size_t getFilesize(const char* filename) {
     stat(filename, &st);
     return st.st_size;
 }
+
 int main(int argc, char** argv) {
     time_t start = time(NULL);
     int cores = get_nprocs();
@@ -28,13 +29,43 @@ int main(int argc, char** argv) {
     void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
     assert(mmappedData != MAP_FAILED);
 
-    int (*freqs)[NUM_CHARS];
+    int *freqs;
     freqs = characterCounter(mmappedData, filesize, cores);
-    createHuffmanTree(charArray, *freqs, NUM_CHARS);
 
+    char** codes = (char **) malloc (NUM_CHARS * sizeof(char*));
+    for(int i = 0; i < NUM_CHARS; i++)
+      codes[i] = (char *) malloc (20 * sizeof(char));
 
-    int rc = munmap(mmappedData, filesize);
-    assert(rc == 0);
+    char *treeString = (char *) malloc (255 * 4 * sizeof(char));
+
+    int nodeCount = createHuffmanTree(freqs, NUM_CHARS, codes, treeString);
+
+    int fileLength = strlen(argv[1]) + 6;
+    char *outputFile = (char *) malloc (fileLength * sizeof(char));
+    strcat(outputFile,"zipped");
+    char* fileEnd = strrchr(argv[1],'/');
+    if(fileEnd != NULL){
+      fileEnd[1] = toupper(fileEnd[1]);
+      strcat(outputFile,&fileEnd[1]);
+    }
+    else{
+      argv[1][0] = toupper(argv[1][0]);
+      strcat(outputFile,argv[1]);
+    }
+    FILE* outFile = fopen(outputFile,"w");
+    assert(outFile != NULL);
+
+    fwrite((void *)treeString,1,nodeCount * 4,outFile);
+    fwrite((void *)"\0\0\0\0",1,4,outFile);
+    free(treeString);
+
+    encode(mmappedData, outFile, cores, filesize, codes);
+
+    for(int i = 0; i < NUM_CHARS; i++)
+      free(codes[i]);
+    free(codes);
+
+    assert (munmap(mmappedData, filesize) == 0);
     close(fd);
     printf("%.2f\n", (double)(time(NULL) - start));
     exit(0);

@@ -38,7 +38,8 @@
 #define MAX_TREE_HT 100
 
 
-
+int parentCount = 0;
+int childCount = 1;
 
 // A Huffman tree node
 struct MinHeapNode {
@@ -216,14 +217,14 @@ int isLeaf(struct MinHeapNode* root)
 // equal to size and inserts all character of
 // data[] in min heap. Initially size of
 // min heap is equal to capacity
-struct MinHeap* createAndBuildMinHeap(char data[], int freq[], int size)
+struct MinHeap* createAndBuildMinHeap(int freq[], int size)
 
 {
 
 	struct MinHeap* minHeap = createMinHeap(size);
 
 	for (int i = 0; i < size; ++i)
-		minHeap->array[i] = newNode(data[i], freq[i]);
+		minHeap->array[i] = newNode(i+32, freq[i]);
 
 	minHeap->size = size;
 	buildMinHeap(minHeap);
@@ -232,7 +233,7 @@ struct MinHeap* createAndBuildMinHeap(char data[], int freq[], int size)
 }
 
 // The main function that builds Huffman tree
-struct MinHeapNode* buildHuffmanTree(char data[], int freq[], int size)
+struct MinHeapNode* buildHuffmanTree(int freq[], int size)
 
 {
 	struct MinHeapNode *left, *right, *top;
@@ -240,7 +241,7 @@ struct MinHeapNode* buildHuffmanTree(char data[], int freq[], int size)
 	// Step 1: Create a min heap of capacity
 	// equal to size. Initially, there are
 	// modes equal to size.
-	struct MinHeap* minHeap = createAndBuildMinHeap(data, freq, size);
+	struct MinHeap* minHeap = createAndBuildMinHeap(freq, size);
 
 	// Iterate while size of heap doesn't become 1
 	while (!isSizeOne(minHeap)) {
@@ -295,35 +296,93 @@ void printCodes(struct MinHeapNode* root, int arr[], int top)
 	// characters, print the character
 	// and its code from arr[]
 	if (isLeaf(root)) {
-
 		printf("%c: ", root->data);
 		printArr(arr, top);
+
+	}
+}
+
+void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char *treeString)
+
+{
+	int index = parentCount++ * 4;
+	treeString[index] = parentCount;
+	treeString[index + 1] = root->data;
+	treeString[index + 2] = '\0';
+	treeString[index + 3] = '\0';
+
+	// Assign 0 to left edge and recur
+	if (root->left) {
+		treeString[index + 2] = ++childCount;
+
+		arr[top] = 0;
+		arrayCodes(root->left, arr, top + 1, codes, treeString);
+	}
+
+	// Assign 1 to right edge and recur
+	if (root->right) {
+		treeString[index + 3] = ++childCount;
+
+		arr[top] = 1;
+		arrayCodes(root->right, arr, top + 1, codes, treeString);
+	}
+
+	// If this is a leaf node, then
+	// it contains one of the input
+	// characters, print the character
+	// and its code from arr[]
+	if (isLeaf(root)) {
+		char *code = (char*)malloc(50 * sizeof(char));
+		for(int i = 0; i < top; i ++)
+			code[i] = arr[i] + '0';
+		codes[root->data - 32] = strdup(code);
+		free(code);
 	}
 }
 
 // The main function that builds a
 // Huffman Tree and print codes by traversing
 // the built Huffman Tree
-struct MinHeapNode* HuffmanCodes(char data[], int freq[], int size)
+void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 
 {
 	// Construct Huffman Tree
 	struct MinHeapNode* root
-		= buildHuffmanTree(data, freq, size);
+		= buildHuffmanTree(freq, size);
 
 	// Print Huffman codes using
 	// the Huffman tree built above
 	int arr[MAX_TREE_HT], top = 0;
 
-	printCodes(root, arr, top);
-	return root;
+	arrayCodes(root, arr, top, codes, treeString);
+	printf("\n%i\n\n", parentCount);
 }
 
 // Driver program to test above functions
 
 // Driver program to test above functions
-struct MinHeapNode* createHuffmanTree(char keys[], int freq[], int size)
+int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 {
+	HuffmanCodes(freq, size, codes, treeString);
+	return parentCount;
+}
 
-	return HuffmanCodes(keys, freq, size);
+struct MinHeapNode* recreateTree(char* treeString, int index){
+	if(treeString[index] == '\0')
+		return NULL;
+		
+
+	struct MinHeapNode* node = newNode(treeString[index+1], 0);
+
+	if(treeString[index + 2] != '\0'){
+			int newIndex = ((treeString[index + 2] - 1) * 4);
+			node->left = recreateTree(treeString, newIndex);
+	}
+	if(treeString[index + 3] != '\0'){
+		int newIndex = ((treeString[index + 3] - 1) * 4);
+		node->right = recreateTree(treeString, newIndex);
+	}
+
+	return node;
+
 }
