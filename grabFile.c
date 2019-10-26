@@ -38,10 +38,17 @@ int main(int argc, char** argv) {
 
     char *treeString = (char *) malloc (255 * 4 * sizeof(char));
 
-    int nodeCount = createHuffmanTree(freqs, NUM_CHARS, codes, treeString);
+    int fileChars = 0;
+    for(int i = 0; i < NUM_CHARS; i++)
+      if(freqs[i] > 0)
+        fileChars++;
+
+    int nodeCount = createHuffmanTree(freqs, fileChars, codes, treeString);
+
+    free(freqs);
 
     int fileLength = strlen(argv[1]) + 6;
-    char *outputFile = (char *) malloc (fileLength * sizeof(char));
+    char *outputFile = (char *) calloc (fileLength, sizeof(char));
     strcat(outputFile,"zipped");
     char* fileEnd = strrchr(argv[1],'/');
     if(fileEnd != NULL){
@@ -54,9 +61,10 @@ int main(int argc, char** argv) {
     }
     FILE* outFile = fopen(outputFile,"w");
     assert(outFile != NULL);
+    free(outputFile);
 
     fwrite((void *)treeString,1,nodeCount * 4,outFile);
-    fwrite((void *)"\0\0\0\0",1,4,outFile);
+    fwrite((void *)"\0\0\0\0\n\n\n",1,7,outFile);
     free(treeString);
 
     encode(mmappedData, outFile, cores, filesize, codes);

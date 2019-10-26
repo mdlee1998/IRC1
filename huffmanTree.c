@@ -33,6 +33,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "characterLocations.h"
+
 // This constant can be avoided by explicitly
 // calculating height of Huffman Tree
 #define MAX_TREE_HT 100
@@ -218,13 +220,16 @@ int isLeaf(struct MinHeapNode* root)
 // data[] in min heap. Initially size of
 // min heap is equal to capacity
 struct MinHeap* createAndBuildMinHeap(int freq[], int size)
-
 {
 
 	struct MinHeap* minHeap = createMinHeap(size);
 
-	for (int i = 0; i < size; ++i)
-		minHeap->array[i] = newNode(i+32, freq[i]);
+	int idx = 0;
+	for (int i = 0; i < NUM_CHARS; ++i)
+		if(freq[i] > 0){
+			minHeap->array[idx] = newNode(i+32, freq[i]);
+			idx++;
+		}
 
 	minHeap->size = size;
 	buildMinHeap(minHeap);
@@ -343,7 +348,7 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 // The main function that builds a
 // Huffman Tree and print codes by traversing
 // the built Huffman Tree
-void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
+struct MinHeapNode* HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 
 {
 	// Construct Huffman Tree
@@ -353,24 +358,28 @@ void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 	// Print Huffman codes using
 	// the Huffman tree built above
 	int arr[MAX_TREE_HT], top = 0;
+	int arre[MAX_TREE_HT], tope = 0;
 
+	printCodes(root, arre, tope);
 	arrayCodes(root, arr, top, codes, treeString);
 	printf("\n%i\n\n", parentCount);
+	return root;
 }
 
 // Driver program to test above functions
 
 // Driver program to test above functions
-int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
+struct MinHeapNode* createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 {
-	HuffmanCodes(freq, size, codes, treeString);
-	return parentCount;
+	return HuffmanCodes(freq, size, codes, treeString);
+	//return parentCount;
+
 }
 
 struct MinHeapNode* recreateTree(char* treeString, int index){
 	if(treeString[index] == '\0')
 		return NULL;
-		
+
 
 	struct MinHeapNode* node = newNode(treeString[index+1], 0);
 

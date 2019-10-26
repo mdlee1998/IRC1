@@ -16,6 +16,7 @@
 
 
 struct MinHeapNode* root;
+struct MinHeapNode* cur;
 int chunkSize;
 int cores;
 char *file;
@@ -24,7 +25,7 @@ FILE* outFile;
 pthread_mutex_t mutex;
 pthread_cond_t *conds;
 int *threadDone;
-int ig;
+
 
 size_t getFilesize(const char* filename) {
     struct stat st;
@@ -41,51 +42,31 @@ int finishedTreeString(char* buffer){
 
 void ascToBinary(unsigned char character, char* buffer, int *idx) {
 
-    if(character == 1)
-    {
-       buffer[*idx] = '1';
-       *idx++;
-       return;
+    for(int i = 7; i > 0; i--){
+      if((int)character % 2 == 1)
+        buffer[*idx + i - 1] = '1';
+      else
+        buffer[*idx + i - 1] = '0';
+      character /= 2;
     }
-    else
-    {
-        char out;
-        if((character%2) == 0)
-        {
-             out = '0';
-             character = character/2;
-        }
-        else
-        {
-             out = '1';
-             character = character/2;
-        }
-        ascToBinary(character, buffer, idx);
-        buffer[*idx++] = out;
-    }
+    *idx = *idx + 7;
   }
 
-  void ascToBinaryWrapper(char character, char* buffer,int *idx){
-    if(character == 0)
-      for(int i = 0; i < 8;i++)
-        buffer[*idx++] = '0';
-    else
-      ascToBinary(character, buffer, idx);
-  }
 
-int decode (char* binary, struct MinHeapNode* node, char* buffer){
+int decode (char* binary, char* buffer){
   int length = strlen(binary);
   char c;
   int index = 0;
+  int count = 0;
   for(int i = 0; i < length; i++){
     c = binary[i];
     if(c == '0')
-      node = node->left;
+      cur = cur->left;
     else if(c == '1')
-      node = node->right;
-    if(isLeaf(node)){
-      buffer[index++] = node->data;
-      node = root;
+      cur = cur->right;
+    if(isLeaf(cur)){
+      buffer[index++] = cur->data;
+      cur = root;
     }
   }
   return index;
@@ -94,28 +75,30 @@ int decode (char* binary, struct MinHeapNode* node, char* buffer){
 void *threadDecode(void *_index){
   int threadNum = (int)_index;
 
-  Pthread_mutex_lock(&mutex)
-  if(threadNum > 0)
-    while(threadDone[threadNum - 1])
-      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
-
-  unsigned char *thisFile = file += (chunkSize * threadNum);
+  unsigned char *thisFile = file + (chunkSize * threadNum);
   char *binary = (char *) malloc(filesize * sizeof(char));
   char *buffer = (char *) malloc((filesize / 4) * sizeof(char));
+
   int *idx = (int *) malloc(sizeof(int));
   *idx = 0;
+  char c;
+  for(int i = 0; i < chunkSize; i++){
+    c = thisFile[i];
+    if(c == '\\')
+      if(thisFile[i+1] == '0')
+        if(thisFile[i+2] == '0')
+          c = '\0';
+    ascToBinary(c, binary, idx);
+  }
 
-  for(ig = 0; ig < chunkSize; ig++)
-    ascToBinaryWrapper(thisFile[ig], binary, idx);
-
-  struct MinHeapNode *tmp = root;
-  int index = decode(binary, tmp, buffer);
-  free(binary);
+  free(idx);
 
   Pthread_mutex_lock(&mutex)
   if(threadNum > 0)
     while(threadDone[threadNum - 1])
       Pthread_cond_wait(&conds[threadNum - 1], &mutex);
+  int index = decode(binary, buffer);
+  free(binary);
   for(int i = 0; i < index; i++)
     fputc(buffer[i], outFile);
   if(threadNum < cores - 1){
@@ -123,6 +106,7 @@ void *threadDecode(void *_index){
     threadDone[threadNum] = 0;
   }
   Pthread_mutex_unlock(&mutex);
+  free(buffer);
 }
 
 int main(int argc, char *argv[]){
@@ -174,8 +158,12 @@ int main(int argc, char *argv[]){
   root = recreateTree(treeString,0);
   free(treeString);
 
+  cur = root;
+
+
   file += index;
   filesize-=index;
+
   if(filesize%cores == 0)
     chunkSize = filesize/cores;
   else
@@ -185,7 +173,13 @@ int main(int argc, char *argv[]){
     Pthread_create(&threads[i], NULL, threadDecode, (void *)i);
   for(int i = 0; i < cores; i ++)
     Pthread_join(threads[i], NULL);
+  free(conds);
 
+  free(threadDone);
+  free(root);
+
+  assert (munmap(mmappedData, filesize) == 0);
+  close(fd);
 
   return 0;
 

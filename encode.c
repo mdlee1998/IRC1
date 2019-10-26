@@ -28,10 +28,10 @@ int bitsToChar(char *sBoolText, char *outText) {
     int index = 0;
 
     len = strlen(sBoolText);
-    for(i=0;i<len;i+=8) {
+    for(i=0;i<len;i+=7) {
         res = 0;
         // build one byte with 8bits as characters
-        for(j=0;j<8;j++) {
+        for(j=0;j<7;j++) {
             res *= 2;
             if (sBoolText[i+j]=='1') res++;
         }
@@ -59,6 +59,9 @@ void *threadEncode(void *_index){
         buffer[bufferIndex++] = codes[c-32][i];
     }
   }
+
+  printf("%i:   %s\n", threadNum, buffer);
+
   int index = bitsToChar(buffer, outString);
   free(buffer);
 
