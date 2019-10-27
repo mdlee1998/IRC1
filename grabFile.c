@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
     assert(outFile != NULL);
     free(outputFile);
 
-    fwrite((void *)treeString,1,nodeCount * 4,outFile);
-    fwrite((void *)"\0\0\0\0",1,4,outFile);
+    fwrite((void *)treeString,1,nodeCount,outFile);
+    fwrite((void *)"aa",1,2,outFile);
     free(treeString);
 
     encode(mmappedData, outFile, cores, filesize, codes);

@@ -33,12 +33,6 @@ size_t getFilesize(const char* filename) {
     return st.st_size;
 }
 
-int finishedTreeString(char* buffer){
-  for(int i = 0; i < 4; i++)
-    if(buffer[i] != '\0')
-      return 1;
-  return 0;
-}
 
 void ascToBinary(unsigned char character, char* buffer, int *idx) {
 
@@ -78,6 +72,12 @@ void *threadDecode(void *_index){
   unsigned char *thisFile = file + (chunkSize * threadNum);
   char *binary = (char *) malloc(filesize * sizeof(char));
   char *buffer = (char *) malloc((filesize / 4) * sizeof(char));
+
+  if(threadNum > 0)
+    while(threadDone[threadNum - 1])
+      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
+  Pthread_mutex_unlock(&mutex);
+
 
   int *idx = (int *) malloc(sizeof(int));
   *idx = 0;
@@ -142,27 +142,25 @@ int main(int argc, char *argv[]){
   char* treeString = (char *) malloc (255 * 4 * sizeof(char));
   int index = 0;
   int notDone = 1;
-  char buffer[4];
   char c;
-  while(notDone){
-    for(int i = 0; i < 4; i++)
-      buffer[i] = (char) file[index+i];
-    notDone = finishedTreeString(buffer);
+
+  while(notDone) {
+    c = (char) file[index];
+    if(c == 'a')
+      if(file[index + 1] == 'a')
+        notDone = 0;
     if(notDone)
-      for(int i = 0; i < 4; i++)
-        treeString[index++] = buffer[i];
-    else
-      index+=4;
+      treeString[index++] = c;
   }
 
-  root = recreateTree(treeString,0);
+  root = recreateTree(treeString,index + 1, index);
   free(treeString);
 
   cur = root;
 
 
-  file += index;
-  filesize-=index;
+  file += index + 2;
+  filesize-=index - 2;
 
   if(filesize%cores == 0)
     chunkSize = filesize/cores;

@@ -40,8 +40,9 @@
 #define MAX_TREE_HT 100
 
 
-int parentCount = 0;
-int childCount = 1;
+int treeStringIndex = 0;
+int idx;
+int cont;
 
 // A Huffman tree node
 struct MinHeapNode {
@@ -310,23 +311,30 @@ void printCodes(struct MinHeapNode* root, int arr[], int top)
 void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char *treeString)
 
 {
-	int index = parentCount++ * 4;
-	treeString[index] = parentCount;
-	treeString[index + 1] = root->data;
-	treeString[index + 2] = '\0';
-	treeString[index + 3] = '\0';
 
+
+	if (isLeaf(root)) {
+		char *code = (char*)calloc(25, sizeof(char));
+		for(int i = 0; i < top; i ++)
+			code[i] = arr[i] + '0';
+		codes[root->data - 32] = strdup(code);
+		free(code);
+
+		treeString[treeStringIndex++] = '1';
+		treeString[treeStringIndex++] = root->data;
+
+		return;
+	}
+
+	treeString[treeStringIndex++] = '0';
 	// Assign 0 to left edge and recur
 	if (root->left) {
-		treeString[index + 2] = ++childCount;
-
 		arr[top] = 0;
 		arrayCodes(root->left, arr, top + 1, codes, treeString);
 	}
 
 	// Assign 1 to right edge and recur
 	if (root->right) {
-		treeString[index + 3] = ++childCount;
 
 		arr[top] = 1;
 		arrayCodes(root->right, arr, top + 1, codes, treeString);
@@ -336,13 +344,7 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 	// it contains one of the input
 	// characters, print the character
 	// and its code from arr[]
-	if (isLeaf(root)) {
-		char *code = (char*)calloc(25, sizeof(char));
-		for(int i = 0; i < top; i ++)
-			code[i] = arr[i] + '0';
-		codes[root->data - 32] = strdup(code);
-		free(code);
-	}
+
 }
 
 // The main function that builds a
@@ -362,7 +364,6 @@ void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 
 	printCodes(root, arre, tope);
 	arrayCodes(root, arr, top, codes, treeString);
-	printf("\n%i\n\n", parentCount);
 }
 
 // Driver program to test above functions
@@ -371,26 +372,32 @@ void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 {
 	HuffmanCodes(freq, size, codes, treeString);
-	return parentCount;
+	return treeStringIndex;
 
 }
 
-struct MinHeapNode* recreateTree(char* treeString, int index){
-	if(treeString[index] == '\0')
+struct MinHeapNode* rebuild(char* treeString){
+
+	struct MinHeapNode* root = newNode('$',0);
+	cont--;
+
+	if(cont == 0){
 		return NULL;
-
-
-	struct MinHeapNode* node = newNode(treeString[index+1], 0);
-
-	if(treeString[index + 2] != '\0'){
-			int newIndex = ((treeString[index + 2] - 1) * 4);
-			node->left = recreateTree(treeString, newIndex);
-	}
-	if(treeString[index + 3] != '\0'){
-		int newIndex = ((treeString[index + 3] - 1) * 4);
-		node->right = recreateTree(treeString, newIndex);
 	}
 
-	return node;
+	if(treeString[idx - cont] == '0'){
+		root->left = rebuild(treeString);
+		root->right = rebuild(treeString);
+	}else{
+		cont--;
+		root->data = treeString[idx - cont];
+	}
 
+	return root;
+}
+
+struct MinHeapNode* recreateTree(char* treeString, int thisCont, int thisIdx){
+	idx = thisIdx;
+	cont = thisCont;
+	return rebuild(treeString);
 }
