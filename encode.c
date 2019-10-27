@@ -14,7 +14,7 @@
 #include "common.h"
 #include "common_threads.h"
 
-void* fileIn;
+void *fileIn;
 size_t chunkSize;
 int cores;
 char **codesPointer[1];
@@ -22,6 +22,9 @@ FILE *fOut;
 pthread_mutex_t mutex;
 pthread_cond_t *conds;
 int *threadDone;
+char *binaryBuffer;
+int binaryLoc;
+int binaryChunk;
 
 int bitsToChar(char *sBoolText, char *outText) {
     int i,j,len,res;
@@ -35,19 +38,18 @@ int bitsToChar(char *sBoolText, char *outText) {
             res *= 2;
             if (sBoolText[i+j]=='1') res++;
         }
-        outText[++index] = res;
+        outText[index++] = res;
     }
     return index;
 }
 
-void *threadEncode(void *_index){
+void *binaryEncode(void *_index){
   char **codes = codesPointer[0];
   char* thisFile = (char *)fileIn;
   int threadNum = (int)_index;
   thisFile = thisFile + (chunkSize*threadNum);
 
-  unsigned char *buffer = (char *) malloc (chunkSize * 25 * sizeof(char));
-  char *outString = (char *) malloc (chunkSize * sizeof(char));
+  unsigned char *buffer = (char *) malloc (chunkSize * 8 * sizeof(char));
 
   char c;
   int bufferIndex = 0;
@@ -60,23 +62,57 @@ void *threadEncode(void *_index){
     }
   }
 
-  printf("%i:   %s\n", threadNum, buffer);
-
-  int index = bitsToChar(buffer, outString);
-  free(buffer);
+  realloc(buffer, bufferIndex);
 
   Pthread_mutex_lock(&mutex)
   if(threadNum > 0)
     while(threadDone[threadNum - 1])
       Pthread_cond_wait(&conds[threadNum - 1], &mutex);
-  for(int i = 0; i < index; i++)
-    fputc(outString[i], fOut);
+  for(int i = 0; i < bufferIndex; i++)
+    binaryBuffer[binaryLoc++] = buffer[i];
   if(threadNum < cores - 1){
     Pthread_cond_signal(&conds[threadNum]);
     threadDone[threadNum] = 0;
   }
   Pthread_mutex_unlock(&mutex);
-  free(outString);
+
+  free(buffer);
+}
+
+void *charEncode(void *_index){
+
+  int threadNum = (int) _index;
+  int start = threadNum * binaryChunk;
+  int end = (binaryChunk/7) + 6;
+
+  char* thisBinary = (char *) calloc(binaryChunk, sizeof(char));
+  char* thisBuffer = (char *) calloc(end, sizeof(char));
+
+  if(threadNum > 0)
+    while(!threadDone[threadNum - 1])
+      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
+  Pthread_mutex_unlock(&mutex);
+
+  for(int i = 0; i < binaryChunk; i++)
+    thisBinary[i] = binaryBuffer[start++];
+
+  int index = bitsToChar(thisBinary, thisBuffer);
+  free(thisBinary);
+
+
+
+  Pthread_mutex_lock(&mutex)
+  if(threadNum > 0)
+    while(!threadDone[threadNum - 1])
+      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
+  for(int i = 0; i < index; i++)
+    fputc(thisBuffer[i], fOut);
+  if(threadNum < cores - 1){
+    Pthread_cond_signal(&conds[threadNum]);
+    threadDone[threadNum] = 1;
+  }
+  Pthread_mutex_unlock(&mutex);
+  free(thisBuffer);
 }
 
 int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes){
@@ -98,10 +134,31 @@ int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes)
   else
     chunkSize = ((inCores - (filesize % inCores)) + filesize) / inCores;
 
+  binaryBuffer = (char *) calloc(filesize * 8, sizeof(char));
+  binaryLoc = 0;
+
   for(int i = 0; i < inCores; i++)
-    Pthread_create(&threads[i], NULL, threadEncode, (void *)i);
+    Pthread_create(&threads[i], NULL, binaryEncode, (void *)i);
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
+
+  realloc(binaryBuffer, binaryLoc);
+
+  for(int i = 0; i < NUM_CHARS; i++)
+    free(codes[i]);
+  free(codes);
+
+  if(binaryLoc % cores == 0)
+    binaryChunk = binaryLoc/cores;
+  else
+    binaryChunk = ((cores - (binaryLoc % cores)) + binaryLoc) / cores;
+
+  for(int i = 0; i < inCores; i++)
+    Pthread_create(&threads[i], NULL, charEncode, (void *)i);
+  for(int i = 0; i < inCores; i++)
+    Pthread_join(threads[i],NULL);
+
+
 
   free(conds);
   free(threadDone);

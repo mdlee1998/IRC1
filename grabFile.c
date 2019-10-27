@@ -64,14 +64,12 @@ int main(int argc, char** argv) {
     free(outputFile);
 
     fwrite((void *)treeString,1,nodeCount * 4,outFile);
-    fwrite((void *)"\0\0\0\0\n\n\n",1,7,outFile);
+    fwrite((void *)"\0\0\0\0",1,4,outFile);
     free(treeString);
 
     encode(mmappedData, outFile, cores, filesize, codes);
 
-    for(int i = 0; i < NUM_CHARS; i++)
-      free(codes[i]);
-    free(codes);
+
 
     assert (munmap(mmappedData, filesize) == 0);
     close(fd);

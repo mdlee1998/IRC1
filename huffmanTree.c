@@ -337,7 +337,7 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 	// characters, print the character
 	// and its code from arr[]
 	if (isLeaf(root)) {
-		char *code = (char*)malloc(50 * sizeof(char));
+		char *code = (char*)calloc(25, sizeof(char));
 		for(int i = 0; i < top; i ++)
 			code[i] = arr[i] + '0';
 		codes[root->data - 32] = strdup(code);
@@ -348,7 +348,7 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 // The main function that builds a
 // Huffman Tree and print codes by traversing
 // the built Huffman Tree
-struct MinHeapNode* HuffmanCodes(int freq[], int size, char **codes, char *treeString)
+void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 
 {
 	// Construct Huffman Tree
@@ -363,16 +363,15 @@ struct MinHeapNode* HuffmanCodes(int freq[], int size, char **codes, char *treeS
 	printCodes(root, arre, tope);
 	arrayCodes(root, arr, top, codes, treeString);
 	printf("\n%i\n\n", parentCount);
-	return root;
 }
 
 // Driver program to test above functions
 
 // Driver program to test above functions
-struct MinHeapNode* createHuffmanTree(int freq[], int size, char **codes, char *treeString)
+int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 {
-	return HuffmanCodes(freq, size, codes, treeString);
-	//return parentCount;
+	HuffmanCodes(freq, size, codes, treeString);
+	return parentCount;
 
 }
 
