@@ -15,7 +15,7 @@
 #define OPENPAREN '('
 #define CLOSEPAREN ')'
 
-#define NUM_CHARS 94
+#define NUM_CHARS 95
 
 struct lockedElement{
   int count;

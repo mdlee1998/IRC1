@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
     int *freqs;
     freqs = characterCounter(mmappedData, filesize, cores);
 
+
     char** codes = (char **) malloc (NUM_CHARS * sizeof(char*));
     for(int i = 0; i < NUM_CHARS; i++)
       codes[i] = (char *) malloc (20 * sizeof(char));
@@ -46,6 +47,7 @@ int main(int argc, char** argv) {
     int nodeCount = createHuffmanTree(freqs, fileChars, codes, treeString);
 
     free(freqs);
+
 
     int fileLength = strlen(argv[1]) + 6;
     char *outputFile = (char *) calloc (fileLength, sizeof(char));

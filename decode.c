@@ -73,12 +73,6 @@ void *threadDecode(void *_index){
   char *binary = (char *) malloc(filesize * sizeof(char));
   char *buffer = (char *) malloc((filesize / 4) * sizeof(char));
 
-  if(threadNum > 0)
-    while(threadDone[threadNum - 1])
-      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
-  Pthread_mutex_unlock(&mutex);
-
-
   int *idx = (int *) malloc(sizeof(int));
   *idx = 0;
   char c;
@@ -171,6 +165,8 @@ int main(int argc, char *argv[]){
     Pthread_create(&threads[i], NULL, threadDecode, (void *)i);
   for(int i = 0; i < cores; i ++)
     Pthread_join(threads[i], NULL);
+
+  freeHuffmanTree(root);
   free(conds);
 
   free(threadDone);

@@ -228,7 +228,10 @@ struct MinHeap* createAndBuildMinHeap(int freq[], int size)
 	int idx = 0;
 	for (int i = 0; i < NUM_CHARS; ++i)
 		if(freq[i] > 0){
-			minHeap->array[idx] = newNode(i+32, freq[i]);
+			if(i == 94)
+			minHeap->array[idx] = newNode(NL, freq[i]);
+			else
+				minHeap->array[idx] = newNode(i+32, freq[i]);
 			idx++;
 		}
 
@@ -236,6 +239,15 @@ struct MinHeap* createAndBuildMinHeap(int freq[], int size)
 	buildMinHeap(minHeap);
 
 	return minHeap;
+}
+
+void freeHuffmanTree(struct MinHeapNode *root){
+	if(isLeaf(root))
+		free(root);
+	else{
+		freeHuffmanTree(root->left);
+		freeHuffmanTree(root->right);
+	}
 }
 
 // The main function that builds Huffman tree
@@ -274,7 +286,9 @@ struct MinHeapNode* buildHuffmanTree(int freq[], int size)
 
 	// Step 4: The remaining node is the
 	// root node and the tree is complete.
-	return extractMin(minHeap);
+	struct MinHeapNode *root = extractMin(minHeap);
+	free(minHeap);
+	return root;
 }
 
 // Prints huffman codes from the root of Huffman Tree.
@@ -317,7 +331,10 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 		char *code = (char*)calloc(25, sizeof(char));
 		for(int i = 0; i < top; i ++)
 			code[i] = arr[i] + '0';
-		codes[root->data - 32] = strdup(code);
+		if(root->data == NL)
+			codes[94] = strdup(code);
+		else
+			codes[root->data - 32] = strdup(code);
 		free(code);
 
 		treeString[treeStringIndex++] = '1';
@@ -364,6 +381,7 @@ void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 
 	printCodes(root, arre, tope);
 	arrayCodes(root, arr, top, codes, treeString);
+	freeHuffmanTree(root);
 }
 
 // Driver program to test above functions
