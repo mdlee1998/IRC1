@@ -121,7 +121,7 @@ void *charEncode(void *_index){
   free(thisBuffer);
 }
 
-int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes){
+int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes, time_t start){
   fileIn = fIn;
   cores = inCores;
   codesPointer[0] = codes;
@@ -148,6 +148,8 @@ int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes)
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
 
+  printf("Binary Encode: %.2f\n", (double)(time(NULL) - start));
+
   realloc(binaryBuffer, binaryLoc);
 
   for(int i = 0; i < NUM_CHARS; i++)
@@ -163,6 +165,8 @@ int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes)
     Pthread_create(&threads[i], NULL, charEncode, (void *)i);
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
+
+  printf("Char Encode: %.2f\n", (double)(time(NULL) - start));
 
 
   free(binaryBuffer);

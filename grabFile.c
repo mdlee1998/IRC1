@@ -30,8 +30,8 @@ int main(int argc, char** argv) {
     assert(mmappedData != MAP_FAILED);
 
     int *freqs;
-    freqs = characterCounter(mmappedData, filesize, cores);
-
+    freqs = characterCounter(mmappedData, filesize, cores, start);
+    printf("Character Counter Time: %.2f\n", (double)(time(NULL) - start));
 
     char** codes = (char **) malloc (NUM_CHARS * sizeof(char*));
     for(int i = 0; i < NUM_CHARS; i++)
@@ -45,6 +45,8 @@ int main(int argc, char** argv) {
         fileChars++;
 
     int nodeCount = createHuffmanTree(freqs, fileChars, codes, treeString);
+    printf("HuffmanTree Created: %.2f\n", (double)(time(NULL) - start));
+
 
     free(freqs);
 
@@ -69,12 +71,13 @@ int main(int argc, char** argv) {
     fwrite((void *)"aa",1,2,outFile);
     free(treeString);
 
-    encode(mmappedData, outFile, cores, filesize, codes);
+    encode(mmappedData, outFile, cores, filesize, codes, start);
+
 
 
 
     assert (munmap(mmappedData, filesize) == 0);
     close(fd);
-    printf("%.2f\n", (double)(time(NULL) - start));
+    printf("Encode Time: %.2f\n", (double)(time(NULL) - start));
     exit(0);
 }

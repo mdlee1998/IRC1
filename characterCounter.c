@@ -67,7 +67,7 @@ void printArray(){
       printf("%i: %c has %i\n", i+32, i+32,finalCount[i]);
 }
 
-int* characterCounter(void* fIn, size_t filesize, int inCores){
+int* characterCounter(void* fIn, size_t filesize, int inCores, time_t start){
 
   file = fIn;
   cores = inCores;
@@ -97,10 +97,16 @@ int* characterCounter(void* fIn, size_t filesize, int inCores){
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
 
+  printf("Map Time: %.2f\n", (double)(time(NULL) - start));
+
+
   for(int i = 0; i < inCores; i++)
     Pthread_create(&threads[i], NULL, reduce, (void *) i);
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i], NULL);
+
+  printf("Reduce Time: %.2f\n", (double)(time(NULL) - start));
+
 
   finalCount = (int*)malloc(NUM_CHARS * sizeof(int));
   makeFinal();
