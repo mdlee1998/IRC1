@@ -196,7 +196,7 @@ int main(int argc, char *argv[]){
 
   cur = root;
 
-
+  //Removes the treeString from the filesize
   file += index + 2;
   filesize-=index - 2;
 
