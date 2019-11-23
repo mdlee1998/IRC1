@@ -1,42 +1,12 @@
-// #include <stdlib.h>
-// #include <stdio.h>
-// #include <string.h>
-//
-// typedef struct huffmanNode{
-//   char character;
-//   int freq;
-//   huffmanNode left;
-//   huffmanNode right;
-// } huffmanNode;
-//
-// typedef struct huffmanTree{
-//   int size = 0;
-//   huffmanNode* nodes;
-// } huffmanTree;
-//
-// void newNode(char c, int freq){
-//   huffmanNode* node = (huffmanNode *)malloc(sizeof(huffmanNode));
-//   node->character = c;
-//   node->freq = freq;
-//   node->left = NULL;
-//   node->right = NULL:
-// }
-//
-// void swapNodes(huffmanNode** a, huffmanNode** b){
-//   huffmanNode* tmp = *a;
-//   *a = *b;
-//   *b = t;
-// }
 
-// C program for Huffman Coding
-#// C program for Huffman Coding
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "characterLocations.h"
+#include "huffmanEncode.h"
 
-// This constant can be avoided by explicitly
-// calculating height of Huffman Tree
+
+//*************CODE TAKEN FROM https://www.geeksforgeeks.org/huffman-coding-greedy-algo-3/***************************************
+
 #define MAX_TREE_HT 100
 
 
@@ -234,21 +204,13 @@ struct MinHeap* createAndBuildMinHeap(int freq[], int size)
 				minHeap->array[idx] = newNode(i+32, freq[i]);
 			idx++;
 		}
-
+	minHeap->array[idx] = newNode(FILEEND,1);
 	minHeap->size = size;
 	buildMinHeap(minHeap);
 
 	return minHeap;
 }
 
-void freeHuffmanTree(struct MinHeapNode *root){
-	if(isLeaf(root))
-		free(root);
-	else{
-		freeHuffmanTree(root->left);
-		freeHuffmanTree(root->right);
-	}
-}
 
 // The main function that builds Huffman tree
 struct MinHeapNode* buildHuffmanTree(int freq[], int size)
@@ -322,6 +284,13 @@ void printCodes(struct MinHeapNode* root, int arr[], int top)
 	}
 }
 
+
+//**************************************************************************************************
+//*****EVERYTHING FOLLOWING IS EITHER MINE OR HEAVILY ALTERED***************************************
+
+
+//Given the root of a huffman tree, will fill the codes array with the codes for each character
+//working recursively.  Also builds the treestring
 void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char *treeString)
 
 {
@@ -331,6 +300,8 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 		char *code = (char*)calloc(25, sizeof(char));
 		for(int i = 0; i < top; i ++)
 			code[i] = arr[i] + '0';
+		if(root->data == FILEEND)
+			codes[95] = strdup(code);
 		if(root->data == NL)
 			codes[94] = strdup(code);
 		else
@@ -364,6 +335,16 @@ void arrayCodes(struct MinHeapNode* root, int arr[], int top, char **codes, char
 
 }
 
+//Frees all the nodes in a huffman tree
+void freeHuffmanTree(struct MinHeapNode *root){
+	if(isLeaf(root))
+		free(root);
+	else{
+		freeHuffmanTree(root->left);
+		freeHuffmanTree(root->right);
+	}
+}
+
 // The main function that builds a
 // Huffman Tree and print codes by traversing
 // the built Huffman Tree
@@ -377,16 +358,15 @@ void HuffmanCodes(int freq[], int size, char **codes, char *treeString)
 	// Print Huffman codes using
 	// the Huffman tree built above
 	int arr[MAX_TREE_HT], top = 0;
-	int arre[MAX_TREE_HT], tope = 0;
 
-	printCodes(root, arre, tope);
 	arrayCodes(root, arr, top, codes, treeString);
 	freeHuffmanTree(root);
 }
 
-// Driver program to test above functions
-
-// Driver program to test above functions
+//Given an array of frequencies, will build a huffman tree, then fill a codes
+//array with the codes for each character.  Will also build a treestring, to
+//be added to an encoded file and allow rebuilding of the tree during decoding.
+//Returns the number of characters in the treestring
 int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 {
 	HuffmanCodes(freq, size, codes, treeString);
@@ -394,6 +374,9 @@ int createHuffmanTree(int freq[], int size, char **codes, char *treeString)
 
 }
 
+//Given a tree string, will rebuild a Huffman Tree given a string recursively, using a
+//pre-order traversal, where 0 represents an inner node, and 1 represents a leaf node,
+//always followed by the character in said node
 struct MinHeapNode* rebuild(char* treeString){
 
 	struct MinHeapNode* root = newNode('$',0);
@@ -414,6 +397,7 @@ struct MinHeapNode* rebuild(char* treeString){
 	return root;
 }
 
+//Wrapper function to recreate a Huffman Tree given a string in decode
 struct MinHeapNode* recreateTree(char* treeString, int thisCont, int thisIdx){
 	idx = thisIdx;
 	cont = thisCont;

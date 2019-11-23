@@ -25,15 +25,17 @@ FILE* outFile;
 pthread_mutex_t mutex;
 pthread_cond_t *conds;
 int *threadDone;
+int fd;
+void *mmappedData;
 
-
+//Gets size of file
 size_t getFilesize(const char* filename) {
     struct stat st;
     stat(filename, &st);
     return st.st_size;
 }
 
-
+//Turns ASCII character to 7 bits
 void ascToBinary(unsigned char character, char* buffer, int *idx) {
 
     for(int i = 7; i > 0; i--){
@@ -46,12 +48,14 @@ void ascToBinary(unsigned char character, char* buffer, int *idx) {
     *idx = *idx + 7;
   }
 
-
+//Takes in string of bits, and decodes it
+//into ASCII using the rebuilt tree
 int decode (char* binary, char* buffer){
   int length = strlen(binary);
   char c;
   int index = 0;
   int count = 0;
+
   for(int i = 0; i < length; i++){
     c = binary[i];
     if(c == '0')
@@ -66,6 +70,10 @@ int decode (char* binary, char* buffer){
   return index;
 }
 
+
+//Thread function that grabs a chunk of the input file,
+//reverts it to bits, decodes it and writes it to the
+//output file.
 void *threadDecode(void *_index){
   int threadNum = (int)_index;
 
@@ -87,14 +95,19 @@ void *threadDecode(void *_index){
 
   free(idx);
 
+
+//Sequentially writes data to the output file
   Pthread_mutex_lock(&mutex)
   if(threadNum > 0)
     while(threadDone[threadNum - 1])
       Pthread_cond_wait(&conds[threadNum - 1], &mutex);
   int index = decode(binary, buffer);
   free(binary);
-  for(int i = 0; i < index; i++)
+  for(int i = 0; i < index; i++){
+    if(buffer[i] == FILEEND && threadNum == cores - 1)
+      break;
     fputc(buffer[i], outFile);
+  }
   if(threadNum < cores - 1){
     Pthread_cond_signal(&conds[threadNum]);
     threadDone[threadNum] = 0;
@@ -103,17 +116,10 @@ void *threadDecode(void *_index){
   free(buffer);
 }
 
-int main(int argc, char *argv[]){
-
-  if (argc != 2){
-    printf("Needs a single file\n");
-    exit(1);
-  }
-
-  filesize= getFilesize(argv[1]);
-  int fileNameLen = strlen(argv[1]) + 2;
+//Initiallizes all data needed for the decoding process
+void initializeDecodeData(char *in){
+  filesize= getFilesize(in);
   cores = get_nprocs();
-  pthread_t threads[cores];
 
   conds = (pthread_cond_t *) malloc ((cores - 1) * sizeof(pthread_cond_t));
   threadDone = (int *) malloc((cores - 1) * sizeof(int));
@@ -122,17 +128,24 @@ int main(int argc, char *argv[]){
     threadDone[i] = 1;
   }
 
-  int fd = open(argv[1], O_RDONLY, 0);
-  void* mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+  fd = open(in, O_RDONLY, 0);
+  mmappedData = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
   assert(mmappedData != MAP_FAILED);
   file = (char *)mmappedData;
+}
 
+//Makes an output file
+void makeOutputFile(int fileNameLen, char *in){
   char *outputFile = (char *) malloc (fileNameLen * sizeof(char));
-  strcat(outputFile,"un");
-  strcat(outputFile,argv[1]);
-  outFile = fopen(outputFile,"w");
+  strcat(outputFile, "un");
+  strcat(outputFile, in);
+  outFile = fopen(outputFile, "w");
   free(outputFile);
+}
 
+//Grabs the treestring in the input file and rebuilds the Huffman
+//tree with it
+int rebuildDecodeTree(){
   char* treeString = (char *) malloc (255 * 4 * sizeof(char));
   int index = 0;
   int notDone = 1;
@@ -149,6 +162,37 @@ int main(int argc, char *argv[]){
 
   root = recreateTree(treeString,index + 1, index);
   free(treeString);
+  return index;
+}
+
+//Frees all the data at the end of decode
+void freeDecodeData(){
+  freeHuffmanTree(root);
+  free(conds);
+
+  free(threadDone);
+  free(root);
+
+  assert (munmap(mmappedData, filesize) == 0);
+  close(fd);
+}
+
+
+//Decodes a Huffman Encoded text file
+int main(int argc, char *argv[]){
+
+  if (argc != 2){
+    printf("Needs a single file\n");
+    exit(1);
+  }
+
+
+  initializeDecodeData(argv[1]);
+
+  int fileNameLen = strlen(argv[1]) + 2;
+  makeOutputFile(fileNameLen, argv[1]);
+
+  int index = rebuildDecodeTree();
 
   cur = root;
 
@@ -161,19 +205,15 @@ int main(int argc, char *argv[]){
   else
     chunkSize = ((cores - (filesize % cores)) + filesize) / cores;
 
+  pthread_t threads[cores];
+
+
   for(int i = 0; i < cores; i ++)
     Pthread_create(&threads[i], NULL, threadDecode, (void *)i);
   for(int i = 0; i < cores; i ++)
     Pthread_join(threads[i], NULL);
 
-  freeHuffmanTree(root);
-  free(conds);
-
-  free(threadDone);
-  free(root);
-
-  assert (munmap(mmappedData, filesize) == 0);
-  close(fd);
+  freeDecodeData();
 
   return 0;
 

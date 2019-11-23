@@ -9,7 +9,7 @@
 #include <time.h>
 #include <pthread.h>
 
-#include "characterLocations.h"
+#include "huffmanEncode.h"
 #include "huffmanTree.c"
 #include "common.h"
 #include "common_threads.h"
@@ -22,10 +22,15 @@ FILE *fOut;
 pthread_mutex_t mutex;
 pthread_cond_t *conds;
 int *threadDone;
-char *binaryBuffer;
+char **binaryBuffer;
+int *binaryCount;
 unsigned long int binaryLoc;
 unsigned long int binaryChunk;
+struct binLocator **locations;
 
+//Changes a string of binary into its ASCII equivalent, using only
+//7 bits for each character due to difficulties with characters past
+//127
 int bitsToChar(char *sBoolText, char *outText) {
     int i,j,len,res;
     int index = 0;
@@ -33,7 +38,6 @@ int bitsToChar(char *sBoolText, char *outText) {
     len = strlen(sBoolText);
     for(i=0;i<len;i+=7) {
         res = 0;
-        // build one byte with 8bits as characters
         for(j=0;j<7;j++) {
             res *= 2;
             if (sBoolText[i+j]=='1') res++;
@@ -43,91 +47,108 @@ int bitsToChar(char *sBoolText, char *outText) {
     return index;
 }
 
+
+//Thread function to encode a chunk of the input file into its huffman encoded binary
+//equivalent, using the index of the thread to calculate where in the file to start
 void *binaryEncode(void *_index){
   char **codes = codesPointer[0];
   char* thisFile = (char *)fileIn;
   int threadNum = (int)_index;
   thisFile = thisFile + (chunkSize*threadNum);
 
-  unsigned char *buffer = (char *) malloc (chunkSize * 8 * sizeof(char));
-  assert(buffer != NULL);
-
-
   char c;
-  int bufferIndex = 0;
   for(int i = 0; i < chunkSize; i++){
     c = thisFile[i];
+    //Adds the specific character's code to the buffer
     if(validChar(c)){
       int len;
       if(c == NL)
-        len = strlen(codes[94]);
+        len = strlen(codes[NUM_CHARS - 1]);
       else
         len = strlen(codes[c-32]);
       for(int i = 0; i < len; i++)
         if(c == NL)
-          buffer[bufferIndex++] = codes[94][i];
+          binaryBuffer[threadNum][binaryCount[threadNum]++] = codes[NUM_CHARS - 1][i];
         else
-          buffer[bufferIndex++] = codes[c-32][i];
+          binaryBuffer[threadNum][binaryCount[threadNum]++] = codes[c-32][i];
     }
   }
-
-  realloc(buffer, bufferIndex);
-
-  Pthread_mutex_lock(&mutex)
-  if(threadNum > 0)
-    while(threadDone[threadNum - 1])
-      Pthread_cond_wait(&conds[threadNum - 1], &mutex);
-  for(int i = 0; i < bufferIndex; i++)
-    binaryBuffer[binaryLoc++] = buffer[i];
-  if(threadNum < cores - 1){
-    Pthread_cond_signal(&conds[threadNum]);
-    threadDone[threadNum] = 0;
+  //Adds the specific character to the file
+  if(threadNum == cores - 1){
+    int len = strlen(codes[NUM_CHARS]);
+    for(int i = 0; i < len; i++)
+      binaryBuffer[threadNum][binaryCount[threadNum]++] = codes[NUM_CHARS][i];
   }
-  Pthread_mutex_unlock(&mutex);
-
-  free(buffer);
 }
 
+//Goes through all the binary, building a string of all that the specific thread should
+//encode to ASCII characters
+void buildBinaryChunk(int threadNum, int currentBuf, int currentLoc, char *thisBinary){
+
+  int done;
+  if(currentBuf >= cores)
+    done = 0;
+  else
+    done = 1;
+  int index = 0;
+  //Adds binary from buffer to this threads chunk
+  while(done) {
+    thisBinary[index++] = binaryBuffer[currentBuf][currentLoc++];
+    if(binaryCount[currentBuf] <= currentLoc){
+      currentLoc = 0;
+      currentBuf++;
+      if(currentBuf >= cores)
+        done = 0;
+    }
+    //Ends once the thread reaches its stopping point
+    if((locations[threadNum]->endLoc <=currentLoc && currentBuf == locations[threadNum]->endBuffer))
+      done = 0;
+  }
+}
+
+//Thread function that converts encoded binary into its ASCII equivalent and prints it to the file
 void *charEncode(void *_index){
 
   int threadNum = (int) _index;
-  unsigned long int start = threadNum * binaryChunk;
-  unsigned long int end = (binaryChunk/7) + 6;
+  int currentBuf = locations[threadNum]->beginBuffer;
+  int currentLoc = locations[threadNum]->beginLoc;
 
   char* thisBinary = (char *) calloc(binaryChunk, sizeof(char));
   assert(thisBinary != NULL);
-  char* thisBuffer = (char *) calloc(end, sizeof(char));
+
+  buildBinaryChunk(threadNum, currentBuf, currentLoc, thisBinary);
+
+  char* thisBuffer = (char *) calloc(binaryChunk, sizeof(char));
   assert(thisBuffer != NULL);
-
-  for(int i = 0; i < binaryChunk; i++)
-    thisBinary[i] = binaryBuffer[start++];
-
-  int index = bitsToChar(thisBinary, thisBuffer);
+  int index;
+  index = bitsToChar(thisBinary, thisBuffer);
   free(thisBinary);
 
 
-
+  //Sequentially writes encoded characters to the file
   Pthread_mutex_lock(&mutex)
   if(threadNum > 0)
-    while(!threadDone[threadNum - 1])
+    while(threadDone[threadNum - 1])
       Pthread_cond_wait(&conds[threadNum - 1], &mutex);
   for(int i = 0; i < index; i++)
     fputc(thisBuffer[i], fOut);
   if(threadNum < cores - 1){
     Pthread_cond_signal(&conds[threadNum]);
-    threadDone[threadNum] = 1;
+    threadDone[threadNum] = 0;
   }
   Pthread_mutex_unlock(&mutex);
   free(thisBuffer);
 }
 
-int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes, time_t start){
+
+//Initializes and memory allocates all data needed for the encoding process
+void initializeEncodingData(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes){
   fileIn = fIn;
   cores = inCores;
   codesPointer[0] = codes;
   fOut = fileOut;
 
-  pthread_t threads[inCores];
+
   conds = (pthread_cond_t *) malloc ((inCores - 1) * sizeof(pthread_cond_t));
   threadDone = (int *) malloc((inCores - 1) * sizeof(int));
   for(int i = 0; i < inCores - 1; i++) {
@@ -140,36 +161,118 @@ int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes,
   else
     chunkSize = ((inCores - (filesize % inCores)) + filesize) / inCores;
 
-  binaryBuffer = (char *) calloc(filesize * 8, sizeof(char));
+  binaryBuffer = (char **) malloc(cores * sizeof(char *));
+  for(int i = 0; i < cores; i++)
+    binaryBuffer[i] = (char *) calloc(filesize, sizeof(char));
+
+  binaryCount = (int *)calloc(cores, sizeof(int));
+}
+
+//Calculates how many bits each thread must work on in the charEncode function
+void calculateThreadChunkForCharEncode(){
   binaryLoc = 0;
+  for(int i = 0; i < cores; i++)
+    binaryLoc += binaryCount[i];
+
+  if(binaryLoc % 7 == 0)
+    binaryChunk = binaryLoc / 7;
+  else
+    binaryChunk = ((7 - (binaryLoc % 7)) + binaryLoc) / 7;
+  if(binaryChunk % cores == 0)
+    binaryChunk = binaryChunk / cores;
+  else
+    binaryChunk = ((cores - (binaryChunk % cores)) + binaryChunk) /cores;
+
+
+  binaryChunk *= 7;
+}
+
+//After binaryEncode, will allocated which binary characters each thread running
+//charEncode will work on.  This prevents the need for each thread of binaryEncode
+//to have to work sequentially, and allows each charEncode thread to have an
+//approximately equal amount of work
+void allocateCharEncodeBinary(){
+
+  int prev = 0;
+  int leftOver = 0;
+  locations = (struct binLocator **) malloc(cores * sizeof(struct binLocator *));
+
+  for(int i = 0; i < cores; i++){
+    locations[i] = (struct binLocator *)calloc(1,sizeof(struct binLocation *));
+    locations[i]->beginBuffer = prev;
+    locations[i]->beginLoc = leftOver;
+    if(binaryCount[prev] < binaryChunk + leftOver){
+      locations[i]->endBuffer = ++prev;
+      leftOver = binaryChunk - binaryCount[prev - 1] + leftOver;
+      if(leftOver > binaryCount[prev]){
+        leftOver -= binaryCount[prev];
+        prev++;
+      }
+      locations[i]->endLoc = leftOver;
+    }else{
+      locations[i]->endBuffer = prev;
+      leftOver = binaryChunk + leftOver + 1;
+      if(leftOver > binaryCount[prev]){
+        leftOver = 0;
+        prev++;
+      }
+      locations[i]->endLoc = leftOver;
+    }
+  }
+}
+
+//Prepares all necessary data after the original data is encoded
+//to binary, to be ready to be converted to encoded ASCII
+void prepareForCharEncode(){
+
+
+  for(int i = 0; i < NUM_CHARS; i++)
+    free(codesPointer[0][i]);
+  free(codesPointer[0]);
+
+  calculateThreadChunkForCharEncode();
+
+  allocateCharEncodeBinary();
+
+}
+
+//Frees all final memory allocated data at the end of encode
+void freeEncodeData(){
+  for(int i = 0; i < cores; i++){
+    free(binaryBuffer[i]);
+    free(locations[i]);
+  }
+  free(binaryBuffer);
+  free(locations);
+  free(binaryCount);
+
+
+  free(conds);
+  free(threadDone);
+}
+
+
+//Given an array of codes, will huffman encode a file, first into the binary
+//equivalent defined by the codes, then into the ASCII equivalent of said binary,
+//finally printing the final characters into an output file
+int encode(void *fIn, FILE* fileOut, int inCores, size_t filesize, char **codes){
+
+  initializeEncodingData(fIn, fileOut, inCores, filesize, codes);
+
+  pthread_t threads[inCores];
 
   for(int i = 0; i < inCores; i++)
     Pthread_create(&threads[i], NULL, binaryEncode, (void *)i);
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
 
-  printf("Binary Encode: %.2f\n", (double)(time(NULL) - start));
+  prepareForCharEncode();
 
-  realloc(binaryBuffer, binaryLoc);
-
-  for(int i = 0; i < NUM_CHARS; i++)
-    free(codes[i]);
-  free(codes);
-
-  if(binaryLoc % cores == 0)
-    binaryChunk = binaryLoc/cores;
-  else
-    binaryChunk = ((cores - (binaryLoc % cores)) + binaryLoc) / cores;
 
   for(int i = 0; i < inCores; i++)
     Pthread_create(&threads[i], NULL, charEncode, (void *)i);
   for(int i = 0; i < inCores; i++)
     Pthread_join(threads[i],NULL);
 
-  printf("Char Encode: %.2f\n", (double)(time(NULL) - start));
-
-
-  free(binaryBuffer);
-  free(conds);
-  free(threadDone);
+  freeEncodeData();
 }

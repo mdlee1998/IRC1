@@ -1,21 +1,20 @@
 #include <pthread.h>
 
-#ifndef characterLocations
-#define characterLocations
+#ifndef characterEncode
+#define characterEncode
 
 #define SPACE ' '
 #define NL '\n'
-
-#define QUESTION '?'
-#define PERIOD '.'
-#define EXCLAMATION '!'
-#define DOUBLEQUO '\"'
-#define SINQUOTE '\''
-#define COMMA ','
-#define OPENPAREN '('
-#define CLOSEPAREN ')'
+#define FILEEND '~'
 
 #define NUM_CHARS 95
+
+struct binLocator{
+  int beginBuffer;
+  int beginLoc;
+  int endBuffer;
+  int endLoc;
+};
 
 struct lockedElement{
   int count;
